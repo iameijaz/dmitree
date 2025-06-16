@@ -41,13 +41,7 @@ If you'd like to rename the output binary or place it in /usr/local/bin for glob
 sudo cp dmitree /usr/local/bin/
 Now you can run it anywhere with:
 
-bash
-Copy
-Edit
-dmitree
-yaml
-Copy
-Edit
+
 
 ---
 
