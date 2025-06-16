@@ -1,0 +1,187 @@
+# .github/workflows/build-deb.yml
+name: Build DEB Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install packaging dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential devscripts debhelper dh-make
+    
+    - name: Extract version from tag
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION="1.0.0"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Create package directory structure
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        mkdir -p dmitree-${VERSION}
+        cp dmitree.c dmitree-${VERSION}/
+        cp README.md dmitree-${VERSION}/
+        
+        # Create Makefile
+        cat > dmitree-${VERSION}/Makefile << 'EOF'
+        CC=gcc
+        CFLAGS=-Wall -O2
+        PREFIX=/usr/local
+        BINDIR=$(PREFIX)/bin
+        
+        dmitree: dmitree.c
+        	$(CC) $(CFLAGS) -o dmitree dmitree.c
+        
+        install: dmitree
+        	install -d $(DESTDIR)$(BINDIR)
+        	install -m 755 dmitree $(DESTDIR)$(BINDIR)
+        
+        clean:
+        	rm -f dmitree
+        
+        .PHONY: install clean
+        EOF
+    
+    - name: Create debian package files
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        cd dmitree-${VERSION}
+        mkdir -p debian
+        
+        # Create control file
+        cat > debian/control << 'EOF'
+        Source: dmitree
+        Section: utils
+        Priority: optional
+        Maintainer: Dmitree Developer <dmitree@example.com>
+        Build-Depends: debhelper (>= 10), gcc
+        Standards-Version: 4.1.2
+        Homepage: https://github.com/${{ github.repository }}
+        
+        Package: dmitree
+        Architecture: any
+        Depends: ${shlibs:Depends}, ${misc:Depends}
+        Description: Smart directory tree viewer with file grouping
+         Dmitree is a lightweight directory tree viewer that intelligently 
+         groups numbered files for cleaner output. Perfect for exploring 
+         datasets, image collections, or any directory with many 
+         sequentially numbered files.
+         .
+         Features include smart file grouping, clean tree display, fast 
+         performance, and directory-only mode.
+        EOF
+        
+        # Create changelog
+        cat > debian/changelog << EOF
+        dmitree (${VERSION}-1) unstable; urgency=medium
+        
+          * Release version ${VERSION}
+          * Smart file grouping functionality
+          * Directory-only mode
+          * Clean tree display
+        
+         -- GitHub Actions <actions@github.com>  $(date -R)
+        EOF
+        
+        # Create compat
+        echo "10" > debian/compat
+        
+        # Create rules
+        cat > debian/rules << 'EOF'
+        #!/usr/bin/make -f
+        
+        %:
+        	dh $@
+        
+        override_dh_auto_install:
+        	$(MAKE) DESTDIR=$(CURDIR)/debian/dmitree install
+        EOF
+        chmod +x debian/rules
+        
+        # Create copyright
+        cat > debian/copyright << 'EOF'
+        Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+        Upstream-Name: dmitree
+        Source: https://github.com/${{ github.repository }}
+        
+        Files: *
+        Copyright: 2025 Dmitree Developer
+        License: MIT
+        
+        License: MIT
+         Permission is hereby granted, free of charge, to any person obtaining a
+         copy of this software and associated documentation files (the "Software"),
+         to deal in the Software without restriction, including without limitation
+         the rights to use, copy, modify, merge, publish, distribute, sublicense,
+         and/or sell copies of the Software, and to permit persons to whom the
+         Software is furnished to do so, subject to the following conditions:
+         .
+         The above copyright notice and this permission notice shall be included
+         in all copies or substantial portions of the Software.
+         .
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+         OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+         THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+         FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+         DEALINGS IN THE SOFTWARE.
+        EOF
+    
+    - name: Build DEB package
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        cd dmitree-${VERSION}
+        dpkg-buildpackage -us -uc -b
+    
+    - name: Get package filename
+      id: package
+      run: |
+        ARCH=$(dpkg --print-architecture)
+        VERSION=${{ steps.version.outputs.VERSION }}
+        PACKAGE_NAME="dmitree_${VERSION}-1_${ARCH}.deb"
+        echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+        echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
+    
+    - name: Test DEB package
+      run: |
+        PACKAGE_NAME=${{ steps.package.outputs.PACKAGE_NAME }}
+        # Test package info
+        dpkg-deb -I $PACKAGE_NAME
+        dpkg-deb -c $PACKAGE_NAME
+        
+        # Test installation (dry run)
+        sudo dpkg -i $PACKAGE_NAME
+        dmitree --help
+        sudo dpkg -r dmitree
+    
+    - name: Upload DEB package as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: dmitree-deb-${{ steps.package.outputs.ARCH }}
+        path: ${{ steps.package.outputs.PACKAGE_NAME }}
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.package.outputs.PACKAGE_NAME }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
