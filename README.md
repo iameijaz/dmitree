@@ -1,76 +1,135 @@
-# dmitree
+# Dmitree 🌳
 
-**dmitree** is a fast, minimalist C utility for visualizing directory structures while intelligently grouping numbered files. It's like `tree`, but smarter — especially useful for datasets and file structures with repetitive, sequential filenames.
+A lightweight directory tree viewer that intelligently groups numbered files for cleaner output.
 
-## 🔍 Features
+## Overview
 
-- 📁 **Clean Tree Structure**: Recursively lists folders and files with indentation.
-- 🔢 **Grouped Numbered Files**: Files like `image_100.jpg`, `image_101.jpg`, etc., are grouped into `image_#.jpg (n files)`.
-- 📂 **Directories-Only Mode**: Use `-d` to view just the folder hierarchy.
-- 📍 **Custom Start Path**: Analyze any directory, not just `.`.
+Dmitree is a fast C program that displays directory structures in a tree format while automatically grouping numbered files (like `file_1.txt`, `file_2.txt`) into a single entry (`file_#.txt (2 files)`). Perfect for exploring datasets, image collections, or any directory with many sequentially numbered files.
 
-## 🛠️ Compilation
+## Features
 
-Make sure you have a C compiler installed (`gcc`, `clang`, etc.).
+- 🗂️ **Smart File Grouping**: Automatically groups numbered files by pattern
+- 🌲 **Clean Tree Display**: Easy-to-read hierarchical structure  
+- ⚡ **Fast Performance**: Written in C for speed
+- 🎯 **Directory-Only Mode**: Use `-d` flag to show just folder structure
+- 📁 **Flexible Paths**: Specify any starting directory
 
-```bash
-gcc -o dmitree tree_grouped.c
+## Installation
 
-
----- Will compile it later
-
-🛠️ Build & Compile Instructions
-markdown
-Copy
-Edit
-## 🛠️ Build & Compile
-
-To build `dmitree`, all you need is a standard C compiler (tested with `gcc` and `clang`):
+### From Source
 
 ```bash
-gcc -O2 -Wall -o dmitree dmitree.c
-Optional flags:
-
--O2: Enables compiler optimizations.
-
--Wall: Enables common warnings to catch potential issues.
-
-If you'd like to rename the output binary or place it in /usr/local/bin for global use:
-
-
+git clone https://github.com/yourusername/dmitree.git
+cd dmitree
+gcc -o dmitree dmitree.c
 sudo cp dmitree /usr/local/bin/
-Now you can run it anywhere with:
+```
 
+### Using DEB Package
 
+Download the latest `.deb` file from [Releases](https://github.com/yourusername/dmitree/releases) and install:
+
+```bash
+sudo dpkg -i dmitree_1.0.0_amd64.deb
+```
+
+## Usage
+
+```bash
+dmitree [options] [directory]
+```
+
+### Options
+
+- `-d` : Show directories only (no files)
+- `-h, --help` : Show help message
+
+### Examples
+
+```bash
+# Show current directory with grouped files
+dmitree
+
+# Show only directory structure
+dmitree -d
+
+# Analyze specific directory
+dmitree /path/to/directory
+
+# Show directory structure of a dataset
+dmitree -d ./my-dataset
+```
+
+## Example Output
+
+**Before (standard ls -R):**
+```
+./images/cats:
+cat_001.jpg  cat_002.jpg  cat_003.jpg  cat_004.jpg
+cat_005.jpg  cat_006.jpg  cat_007.jpg  cat_008.jpg
+```
+
+**After (Dmitree):**
+```
+└── images/
+  └── cats/
+    ├── cat_#.jpg (8 files)
+```
+
+## Use Cases
+
+- 📊 **Dataset Exploration**: Quickly understand structure of ML datasets
+- 🖼️ **Image Collections**: Clean view of photo directories  
+- 📂 **Log File Analysis**: Group numbered log files
+- 🔍 **Project Navigation**: Get familiar with new codebases
+
+## Building from Source
+
+### Prerequisites
+
+- GCC compiler
+- Standard C library
+
+### Compile
+
+```bash
+gcc -o dmitree dmitree.c
+```
+
+### Install System-wide
+
+```bash
+sudo cp dmitree /usr/local/bin/
+```
+
+## Creating DEB Package
+
+See [PACKAGING.md](PACKAGING.md) for detailed instructions on building DEB packages.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+Created with ❤️ for better directory navigation.
+
+## Changelog
+
+### v1.0.0
+- Initial release
+- Basic tree display with file grouping
+- Directory-only mode
+- Command-line argument parsing
 
 ---
 
-### 📦 Releases
-
-```markdown
-## 📦 Releases
-
-You can find precompiled binaries or tagged versions under the [Releases](https://github.com/yourusername/dmitree/releases) section once available.
-
-Each release will include:
-- ✅ Compiled binaries for Linux/macOS (and WSL support)
-- ✅ Source code snapshot
-- ✅ Changelog of updates
-
-If you'd like to build from source, follow the [Build & Compile](#️build--compile) section.
-🧾 Changelog Template (Optional, but good practice)
-markdown
-Copy
-Edit
-## 🧾 Changelog
-
-### v1.0.0 (Initial Release)
-- Added recursive directory traversal
-- Implemented grouped display of numbered files (e.g. `img_#.jpg (n files)`)
-- Added `-d` flag to display directories only
-- Custom root path supported
-
-### Planned (v1.1+)
-- File extension filters
-- Output to file (e.g., `tree.txt`)
-- Color-coded terminal output
+⭐ If you find Dmitree useful, please give it a star on GitHub!
