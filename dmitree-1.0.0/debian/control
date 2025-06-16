@@ -1,0 +1,19 @@
+Source: dmitree
+Section: utils
+Priority: optional
+Maintainer: Your Name <your.email@example.com>
+Build-Depends: debhelper (>= 10), gcc
+Standards-Version: 4.1.2
+Homepage: https://github.com/yourusername/dmitree
+
+Package: dmitree
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Smart directory tree viewer with file grouping
+ Dmitree is a lightweight directory tree viewer that intelligently 
+ groups numbered files for cleaner output. Perfect for exploring 
+ datasets, image collections, or any directory with many 
+ sequentially numbered files.
+ .
+ Features include smart file grouping, clean tree display, fast 
+ performance, and directory-only mode.
