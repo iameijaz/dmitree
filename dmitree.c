@@ -136,11 +136,13 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "-d") == 0) {
             show_files = 0;  // directories only
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Dmitree v1.0.0 - Smart directory tree viewer\n");
             printf("Usage: %s [options] [directory]\n", argv[0]);
             printf("Options:\n");
             printf("  -d        Show directories only\n");
             printf("  -h        Show this help\n");
             printf("\nGroups numbered files like: file_1.txt, file_2.txt -> file_#.txt (2 files)\n");
+            printf("Repository: https://github.com/yourusername/dmitree\n");
             return 0;
         } else {
             start_path = argv[i];
