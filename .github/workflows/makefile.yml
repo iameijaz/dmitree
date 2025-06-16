@@ -1,0 +1,104 @@
+# .github/workflows/makefile.yml
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc make
+    
+    - name: Create Makefile
+      run: |
+        cat > Makefile << 'EOF'
+        CC=gcc
+        CFLAGS=-Wall -Wextra -O2 -std=c99
+        TARGET=dmitree
+        SOURCE=dmitree.c
+        PREFIX=/usr/local
+        BINDIR=$(PREFIX)/bin
+        
+        # Default target
+        all: $(TARGET)
+        
+        # Build the main executable
+        $(TARGET): $(SOURCE)
+        	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE)
+        
+        # Install target
+        install: $(TARGET)
+        	install -d $(DESTDIR)$(BINDIR)
+        	install -m 755 $(TARGET) $(DESTDIR)$(BINDIR)
+        
+        # Clean target
+        clean:
+        	rm -f $(TARGET)
+        
+        # Test target
+        test: $(TARGET)
+        	@echo "Running basic tests..."
+        	./$(TARGET) --help
+        	./$(TARGET) -d .
+        	./$(TARGET) .
+        	@echo "All tests passed!"
+        
+        # Check target (alias for test)
+        check: test
+        
+        # Install check - test after building
+        installcheck: $(TARGET)
+        	@echo "Testing installation readiness..."
+        	ldd ./$(TARGET) || true
+        	file ./$(TARGET)
+        	./$(TARGET) --help > /dev/null
+        	@echo "Installation check passed!"
+        
+        # Development dependencies check
+        deps:
+        	@echo "Checking development dependencies..."
+        	@which gcc > /dev/null || (echo "gcc not found" && exit 1)
+        	@which make > /dev/null || (echo "make not found" && exit 1)
+        	@echo "All dependencies satisfied!"
+        
+        .PHONY: all clean test check install installcheck deps
+        EOF
+    
+    - name: Check dependencies
+      run: make deps
+    
+    - name: Build dmitree
+      run: make
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Run check
+      run: make check
+    
+    - name: Run install check
+      run: make installcheck
+    
+    - name: Test clean
+      run: |
+        make clean
+        test ! -f dmitree
+    
+    - name: Rebuild after clean
+      run: make
+    
+    - name: Upload binary as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: dmitree-binary-${{ github.sha }}
+        path: dmitree
