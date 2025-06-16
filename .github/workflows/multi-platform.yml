@@ -1,0 +1,50 @@
+
+name: Multi-Platform Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04]
+        arch: [x86_64]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc make
+    
+    - name: Build dmitree
+      run: |
+        gcc -Wall -O2 -o dmitree dmitree.c
+        strip dmitree
+    
+    - name: Test binary
+      run: |
+        ./dmitree --help
+        ./dmitree -d .
+    
+    - name: Create tarball
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        if [[ ! $VERSION =~ ^[0-9] ]]; then
+          VERSION="dev"
+        fi
+        OS_NAME=$(echo ${{ matrix.os }} | cut -d'-' -f1)
+        tar -czf dmitree-${VERSION}-${OS_NAME}-${{ matrix.arch }}.tar.gz dmitree README.md
+    
+    - name: Upload binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: dmitree-${{ matrix.os }}-${{ matrix.arch }}
+        path: dmitree-*.tar.gz
