@@ -4,45 +4,119 @@
 #include <ctype.h>
 
 #ifdef _WIN32
-    #include <windows.h>
-    #include <direct.h>
-    #define PATH_SEPARATOR '\\'
-    #define getcwd _getcwd
+  #include <io.h>
+  #include <sys/stat.h>
+  #define STAT_STRUCT    struct _stat
+  #define STAT_FUNC(p, buf)  _stat((p), (buf))
+  #define DIRSEP        "\\"
+  #define FIND_HANDLE   intptr_t
+  #define FIND_DATA     struct _finddata_t
+  #define FIND_FIRST(p, d)   _findfirst((p), (d))
+  #define FIND_NEXT(h, d)    _findnext((h), (d))
+  #define FIND_CLOSE(h)      _findclose(h)
 #else
-    #include <dirent.h>
-    #include <sys/stat.h>
-    #include <unistd.h>
-    #define PATH_SEPARATOR '/'
+  #include <dirent.h>
+  #include <sys/stat.h>
+  #define STAT_STRUCT    struct stat
+  #define STAT_FUNC(p, buf)  stat((p), (buf))
+  #define DIRSEP        "/"
+  #define FIND_HANDLE   DIR*
+  #define FIND_DATA     struct dirent
 #endif
 
-#define MAX_PATH_LEN 1024
+#define MAX_PATH    1024
 #define MAX_PATTERN 256
+#define MAX_COLOR_RULES 100
+#define MAX_IGNORE_RULES 100
 
 typedef struct {
     char pattern[MAX_PATTERN];
-    int count;
+    int  count;
 } FileGroup;
 
-// Function to extract base pattern from filename
+// color rule: extension or "folder"
+typedef struct {
+    char key[MAX_PATTERN];    // ".c" or "folder"
+    char color_code[8];       // ANSI code like "33" or "34"
+} ColorRule;
+
+static ColorRule color_rules[MAX_COLOR_RULES];
+static int       color_rule_count = 0;
+static char      ignore_patterns[MAX_IGNORE_RULES][MAX_PATTERN];
+static int       ignore_count = 0;
+
+static int max_depth = -1;  // no limit by default
+static int use_color = 0;
+
+// Load config: ~/.dmitreerc or dmitree.conf in CWD
+void load_config() {
+    const char *paths[] = {"./dmitree.conf", "~/.dmitreerc"};
+    char buf[512];
+    for (int p = 0; p < 2; p++) {
+        FILE *f = fopen(paths[p], "r");
+        if (!f) continue;
+        while (fgets(buf, sizeof(buf), f)) {
+            if (buf[0] == '#' || buf[0] == '\n') continue;
+            char *eq = strchr(buf, '=');
+            if (!eq) continue;
+            *eq = '\0';
+            char *key = buf;
+            char *val = eq + 1;
+            // trim newline
+            char *nl = strchr(val, '\n'); if (nl) *nl = '\0';
+            if (strcmp(key, "color") == 0) {
+                // format: ext:key:code or folder:code
+                char *k = strtok(val, ":");
+                char *c = strtok(NULL, ":");
+                if (k && c && color_rule_count < MAX_COLOR_RULES) {
+                    strcpy(color_rules[color_rule_count].key, k);
+                    strcpy(color_rules[color_rule_count].color_code, c);
+                    color_rule_count++;
+                }
+            } else if (strcmp(key, "ignore") == 0) {
+                if (ignore_count < MAX_IGNORE_RULES) {
+                    strncpy(ignore_patterns[ignore_count++], val, MAX_PATTERN-1);
+                }
+            }
+        }
+        fclose(f);
+    }
+}
+
+// Check if name matches any ignore pattern (simple substring)
+int is_ignored(const char *name) {
+    for (int i = 0; i < ignore_count; i++) {
+        if (strstr(name, ignore_patterns[i])) return 1;
+    }
+    return 0;
+}
+
+// Get ANSI wrap for key (extension or "folder")
+char* get_color(const char *key) {
+    for (int i = 0; i < color_rule_count; i++) {
+        if (strcmp(color_rules[i].key, key) == 0) {
+            static char seq[16];
+            snprintf(seq, sizeof(seq), "\x1b[%sm", color_rules[i].color_code);
+            return seq;
+        }
+    }
+    return "";
+}
+
+// Reset ANSI
+const char *COLOR_RESET = "\x1b[0m";
+
 void extract_pattern(const char* filename, char* pattern) {
     int i, j = 0;
     int in_number = 0;
-
     for (i = 0; filename[i] && j < MAX_PATTERN - 1; i++) {
-        if (isdigit(filename[i])) {
-            if (!in_number) {
-                pattern[j++] = '#';
-                in_number = 1;
-            }
-        } else {
-            pattern[j++] = filename[i];
-            in_number = 0;
-        }
+        if (isdigit((unsigned char)filename[i])) {
+            if (!in_number) { pattern[j++] = '#'; in_number = 1; }
+        } else { pattern[j++] = filename[i]; in_number = 0; }
     }
     pattern[j] = '\0';
 }
 
-// Function to find or create a file group
 int find_or_create_group(FileGroup* groups, int* group_count, const char* pattern) {
     for (int i = 0; i < *group_count; i++) {
         if (strcmp(groups[i].pattern, pattern) == 0) {
@@ -50,208 +124,101 @@ int find_or_create_group(FileGroup* groups, int* group_count, const char* patter
             return i;
         }
     }
-
-    // Create new group
     strcpy(groups[*group_count].pattern, pattern);
     groups[*group_count].count = 1;
     (*group_count)++;
     return *group_count - 1;
 }
 
-// Function to check if a string contains digits
 int has_numbers(const char* str) {
-    for (int i = 0; str[i]; i++) {
-        if (isdigit(str[i])) return 1;
-    }
+    for (int i = 0; str[i]; i++) if (isdigit((unsigned char)str[i])) return 1;
     return 0;
 }
 
-#ifdef _WIN32
-void print_tree_windows(const char* path, int level, int show_files) {
-    WIN32_FIND_DATA findFileData;
-    HANDLE hFind;
-    char searchPath[MAX_PATH_LEN];
-    char fullPath[MAX_PATH_LEN];
+void print_tree(const char* path, int level, int show_files) {
+    if (max_depth >= 0 && level > max_depth) return;
+
+    FIND_HANDLE hFind;
+    FIND_DATA fd;
+    STAT_STRUCT st;
+    char full_path[MAX_PATH];
     char indent[256] = "";
     FileGroup groups[1000];
     int group_count = 0;
 
-    // Create indentation
-    for (int i = 0; i < level; i++) {
-        strcat(indent, "  ");
-    }
-
+    for (int i = 0; i < level; i++) strcat(indent, "  ");
     if (level > 0) {
-        const char* dirName = strrchr(path, PATH_SEPARATOR);
-        printf("%s+--- %s/\n", indent, dirName ? dirName + 1 : path);
+        const char* leaf = strrchr(path, DIRSEP[0]);
+        char *color = "";
+        if (use_color) color = get_color("folder");
+        printf("%s%s+-- %s/%s\n", indent, color, leaf ? leaf+1 : path,
+               use_color ? COLOR_RESET : "");
         strcat(indent, "  ");
     }
 
-    // Prepare search path
-    snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
-
-    hFind = FindFirstFile(searchPath, &findFileData);
-    if (hFind == INVALID_HANDLE_VALUE) {
-        printf("Error accessing directory: %s\n", path);
-        return;
-    }
+    char search[MAX_PATH];
+    snprintf(search, MAX_PATH, "%s%s*", path, DIRSEP);
+    hFind = FIND_FIRST(search, &fd);
+    if (hFind == -1) return;
 
     do {
-        if (strcmp(findFileData.cFileName, ".") == 0 || 
-            strcmp(findFileData.cFileName, "..") == 0) {
-            continue;
-        }
-
-        snprintf(fullPath, sizeof(fullPath), "%s\\%s", path, findFileData.cFileName);
-
-        if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            print_tree_windows(fullPath, level + 1, show_files);
-        } else if (show_files) {
-            if (has_numbers(findFileData.cFileName)) {
-                char pattern[MAX_PATTERN];
-                extract_pattern(findFileData.cFileName, pattern);
-                find_or_create_group(groups, &group_count, pattern);
-            } else {
-                printf("%s|-- %s\n", indent, findFileData.cFileName);
-            }
-        }
-    } while (FindNextFile(hFind, &findFileData) != 0);
-
-    FindClose(hFind);
-
-    // Print grouped files
-    if (show_files) {
-        for (int i = 0; i < group_count; i++) {
-            if (groups[i].count > 1) {
-                printf("%s├── %s (%d files)\n", indent, groups[i].pattern, groups[i].count);
-            } else {
-                // Find and print the original filename
-                hFind = FindFirstFile(searchPath, &findFileData);
-                if (hFind != INVALID_HANDLE_VALUE) {
-                    do {
-                        if (strcmp(findFileData.cFileName, ".") == 0 || 
-                            strcmp(findFileData.cFileName, "..") == 0) {
-                            continue;
-                        }
-                        if (!(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                            char pattern[MAX_PATTERN];
-                            extract_pattern(findFileData.cFileName, pattern);
-                            if (strcmp(pattern, groups[i].pattern) == 0) {
-                                printf("%s├── %s\n", indent, findFileData.cFileName);
-                                break;
-                            }
-                        }
-                    } while (FindNextFile(hFind, &findFileData) != 0);
-                    FindClose(hFind);
-                }
-            }
-        }
-    }
-}
-#else
-void print_tree_unix(const char* path, int level, int show_files) {
-    DIR* dir;
-    struct dirent* entry;
-    struct stat file_stat;
-    char full_path[MAX_PATH_LEN];
-    char indent[256] = "";
-    FileGroup groups[1000];
-    int group_count = 0;
-
-    // Create indentation
-    for (int i = 0; i < level; i++) {
-        strcat(indent, "  ");
-    }
-
-    if (level > 0) {
-        printf("%s+--- %s/\n", indent, strrchr(path, '/') ? strrchr(path, '/') + 1 : path);
-        strcat(indent, "  ");
-    }
-
-    dir = opendir(path);
-    if (!dir) {
-        perror("opendir");
-        return;
-    }
-
-    // First pass: collect directories and group files
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] == '.') continue;
-
-        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-
-        if (stat(full_path, &file_stat) == 0) {
-            if (S_ISDIR(file_stat.st_mode)) {
-                print_tree_unix(full_path, level + 1, show_files);
+        if (fd.name[0] == '.' || is_ignored(fd.name)) continue;
+        snprintf(full_path, MAX_PATH, "%s%s%s", path, DIRSEP, fd.name);
+        if (STAT_FUNC(full_path, &st) == 0) {
+            int is_dir = (st.st_mode & S_IFDIR) != 0;
+            if (is_dir) {
+                print_tree(full_path, level+1, show_files);
             } else if (show_files) {
-                if (has_numbers(entry->d_name)) {
-                    char pattern[MAX_PATTERN];
-                    extract_pattern(entry->d_name, pattern);
-                    find_or_create_group(groups, &group_count, pattern);
-                } else {
-                    printf("%s├── %s\n", indent, entry->d_name);
-                }
+                char ext[MAX_PATTERN] = "";
+                char *color = "";
+                // get extension
+                char *dot = strrchr(fd.name, '.');
+                if (dot) { strncpy(ext, dot, MAX_PATTERN-1); }
+                if (use_color && ext[0]) color = get_color(ext);
+                // print
+                printf("%s%s|-- %s%s\n", indent, color, fd.name,
+                       use_color ? COLOR_RESET : "");
             }
         }
-    }
+    } while (FIND_NEXT(hFind, &fd) == 0);
+    FIND_CLOSE(hFind);
 
-    // Print grouped files
     if (show_files) {
         for (int i = 0; i < group_count; i++) {
             if (groups[i].count > 1) {
-                printf("%s├── %s (%d files)\n", indent, groups[i].pattern, groups[i].count);
-            } else {
-                // If only one file matches pattern, show original name
-                rewinddir(dir);
-                while ((entry = readdir(dir)) != NULL) {
-                    if (entry->d_name[0] == '.') continue;
-                    char pattern[MAX_PATTERN];
-                    extract_pattern(entry->d_name, pattern);
-                    if (strcmp(pattern, groups[i].pattern) == 0) {
-                        printf("%s├── %s\n", indent, entry->d_name);
-                        break;
-                    }
-                }
+                printf("%s|-- %s (%d files)\n", indent,
+                       groups[i].pattern, groups[i].count);
             }
         }
     }
-
-    closedir(dir);
-}
-#endif
-
-void print_tree(const char* path, int level, int show_files) {
-#ifdef _WIN32
-    print_tree_windows(path, level, show_files);
-#else
-    print_tree_unix(path, level, show_files);
-#endif
 }
 
 int main(int argc, char* argv[]) {
     const char* start_path = ".";
     int show_files = 1;
 
-    // Parse command line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0) {
-            show_files = 0;  // directories only
+            show_files = 0;
+        } else if (strcmp(argv[i], "--color") == 0) {
+            use_color = 1;
+        } else if ((strcmp(argv[i], "-L") == 0 || strcmp(argv[i], "--depth") == 0) && i+1<argc) {
+            max_depth = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            printf("Dmitree v0.2.0 - Smart directory tree viewer from VBT\n");
             printf("Usage: %s [options] [directory]\n", argv[0]);
             printf("Options:\n");
-            printf("  -d        Show directories only\n");
-            printf("  -h        Show this help\n");
-            printf("\nGroups numbered files like: file_1.txt, file_2.txt -> file_#.txt (2 files)\n");
-            printf("Cross-platform compatible (Windows/Linux)\n");
+            printf("  -d            Show directories only\n");
+            printf("  -L, --depth N Limit depth to N levels\n");
+            printf("  --color       Enable ANSI colors per config\n");
+            printf("  -h, --help    Show this help\n");
             return 0;
         } else {
             start_path = argv[i];
         }
     }
 
+    load_config();
     printf("Tree structure for: %s\n", start_path);
     print_tree(start_path, 0, show_files);
-
     return 0;
 }
