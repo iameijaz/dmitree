@@ -133,3 +133,13 @@ Created with ❤️ for better directory navigation.
 ---
 
 ⭐ If you find Dmitree useful, please give it a star on GitHub!
+
+
+--------------------
+cmake ^
+  -G "MinGW Makefiles" ^
+  -DCMAKE_C_COMPILER="C:/msys64/mingw64/bin/gcc.exe" ^
+  -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" ^
+  ..
+
+mingw32-make

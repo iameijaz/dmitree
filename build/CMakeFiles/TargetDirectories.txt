@@ -1,0 +1,3 @@
+C:/Users/VBT/dmitree/build/CMakeFiles/dmitree.dir
+C:/Users/VBT/dmitree/build/CMakeFiles/edit_cache.dir
+C:/Users/VBT/dmitree/build/CMakeFiles/rebuild_cache.dir
