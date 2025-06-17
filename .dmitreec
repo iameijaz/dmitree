@@ -1,0 +1,7 @@
+# color rules: key:ANSI‐code
+color=folder:33
+color=.c:34
+
+# patterns to ignore
+ignore=build
+ignore=*.o
