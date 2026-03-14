@@ -19,7 +19,7 @@ Dmitree is a fast C program that displays directory structures in a tree format 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/dmitree.git
+git clone https://github.com/iameijaz/dmitree.git
 cd dmitree
 gcc -o dmitree dmitree.c
 sudo cp dmitree /usr/local/bin/
@@ -27,7 +27,7 @@ sudo cp dmitree /usr/local/bin/
 
 ### Using DEB Package
 
-Download the latest `.deb` file from [Releases](https://github.com/yourusername/dmitree/releases) and install:
+Download the latest `.deb` file from [Releases](https://github.com/iameijaz/dmitree/releases) and install:
 
 ```bash
 sudo dpkg -i dmitree_1.0.0_amd64.deb
