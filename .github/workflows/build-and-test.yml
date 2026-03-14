@@ -1,4 +1,3 @@
-# .github/workflows/build-and-test.yml
 name: Build and Test
 
 on:
@@ -10,28 +9,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
-    
     - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc make
-    
+      run: sudo apt-get update && sudo apt-get install -y gcc make
     - name: Build dmitree
-      run: |
-        gcc -Wall -O2 -o dmitree dmitree.c
-    
+      run: gcc -Wall -O2 -o dmitree dmitree.c
     - name: Test basic functionality
       run: |
         ./dmitree --help
         ./dmitree -d .
         ./dmitree .
-    
     - name: Upload binary as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dmitree-binary
         path: dmitree
-
