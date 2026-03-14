@@ -19,3 +19,8 @@ jobs:
       run: |
         ./dmitree --help
         ./dmitree -d .
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: dmitree-binary-makefile
+        path: dmitree
