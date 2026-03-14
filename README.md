@@ -2,6 +2,9 @@
 
 A lightweight directory tree viewer that intelligently groups numbered files for cleaner output.
 
+![Build & Test](https://github.com/iameijaz/dmitree/actions/workflows/build-and-test.yml/badge.svg)
+![Multi-platform](https://github.com/iameijaz/dmitree/actions/workflows/multi-platform.yml/badge.svg)
+
 ## Overview
 
 Dmitree is a fast C program that displays directory structures in a tree format while automatically grouping numbered files (like `file_1.txt`, `file_2.txt`) into a single entry (`file_#.txt (2 files)`). Perfect for exploring datasets, image collections, or any directory with many sequentially numbered files.
@@ -119,8 +122,7 @@ See [PACKAGING.md](PACKAGING.md) for detailed instructions on building DEB packa
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Author
-
-Created with ❤️ for better directory navigation.
+Ijaz Ahmed [Verbit] — github.com/iameijaz
 
 ## Changelog
 
@@ -134,12 +136,3 @@ Created with ❤️ for better directory navigation.
 
 ⭐ If you find Dmitree useful, please give it a star on GitHub!
 
-
---------------------
-cmake ^
-  -G "MinGW Makefiles" ^
-  -DCMAKE_C_COMPILER="C:/msys64/mingw64/bin/gcc.exe" ^
-  -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" ^
-  ..
-
-mingw32-make
