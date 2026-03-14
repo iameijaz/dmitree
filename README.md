@@ -2,6 +2,8 @@
 
 A lightweight directory tree viewer that intelligently groups numbered files for cleaner output.
 
+![Build & Test](https://github.com/iameijaz/dmitree/actions/workflows/build-and-test.yml/badge.svg)
+![Multi-platform](https://github.com/iameijaz/dmitree/actions/workflows/multi-platform.yml/badge.svg)
 
 ## Overview
 
