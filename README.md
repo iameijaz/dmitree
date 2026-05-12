@@ -1,4 +1,4 @@
-# Dmitree 🌳
+# Dmitree 
 
 A lightweight directory tree viewer that intelligently groups numbered files for cleaner output.
 
